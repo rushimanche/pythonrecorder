@@ -7,9 +7,20 @@ import wave
 import time
 import os
 import sys
+import argparse
+parser = argparse.ArgumentParser()
+
+parser.add_argument("-p", "--path", help="Enter the desired directory", type=str)
+parser.add_argument("-f", "--filename", help="Enter the desired file name", type=str)
+
+args = parser.parse_args()
+directory = args.path if args.path else r'C:\Users\dunka\Documents\GitHub\audioproject\directory'
+file_name = args.filename if args.filename else ''
+directory.encode('unicode_escape')
+file_name.encode('unicode_escape')
 
 #this is where your audio files will be stored. Please change this to meet your liking.
-directory = r'C:\Users\dunka\Documents\GitHub\audioproject\directory'
+#directory = r'C:\Users\dunka\Documents\GitHub\audioproject\directory'
 
 #Some variables to work with
 
@@ -20,9 +31,20 @@ CHANNELS = 1
 
 SHORT_NORMALIZE = (1.0/32768.0)
 
-chunk = 1024
+#set environ variables here
+os.environ['chunk'] = '1024'
+os.environ['RATE'] = '16000'
 
-RATE = 16000
+#sets environ variables to our internal variables
+chunk = int(os.getenv('chunk'))
+RATE = int(os.getenv('RATE'))
+
+#logic to check for validity of environ variables. if not met, results in defaults
+if(os.getenv('chunk') == None or isinstance(os.getenv('chunk'), int)):
+    chunk = 1024
+
+if(os.getenv('RATE') == None or isinstance(os.getenv('RATE'), int)):
+    RATE = 16000
 
 swidth = 2
 
@@ -38,16 +60,17 @@ class SoundRecorder:
     #calculates current audio level
 
     @staticmethod
-    def calculator(frame):
-        vals = len(frame) / swidth
-        format = "%dh" % (vals)
-        shorts = struct.unpack(format, frame)
+    def calculator(audio):
+        
+        vals = len(audio) / swidth
+        calc_format = "%dh" % (vals)
+        shorts_ex = struct.unpack(calc_format, audio)
 
-        sum_squares = 0.0
-        for sample in shorts:
+        counter = 0.0
+        for sample in shorts_ex:
             n = sample * SHORT_NORMALIZE
-            sum_squares += n * n
-        calculator = math.pow(sum_squares / vals, 0.5)
+            counter += n * n
+        calculator = math.pow(counter / vals, 0.5)
 
         return calculator * 1000
 
@@ -56,8 +79,9 @@ class SoundRecorder:
         info = self.p.get_host_api_info_by_index(0)
         numdevices = info.get('deviceCount')
         device_name = 'Microphone Array (Realtek(R) Au'
+        global device_id
         device_id = 0
-
+        
         for i in range(0, numdevices):
             if (self.p.get_device_info_by_host_api_device_index(0, i).get('maxInputChannels')) > 0:
                 print("Input Device ID:", i, " - ", self.p.get_device_info_by_host_api_device_index(0, i).get('name'))
@@ -83,14 +107,16 @@ class SoundRecorder:
     def listenForSound(self):
         print('Python listening script initiated!')
         while True:
+            if not(self.p.get_device_info_by_host_api_device_index(0, device_id).get('name')):
+                sys.exit("Audio device disconnected. Please reconnect!")
+
             input = self.stream.read(chunk)
             current_sound_level = self.calculator(input)
-            print(current_sound_level)
             if current_sound_level > maxSoundVal:
                 self.recordSound()
 
     #function responsible for recording sound
-    def recordSound(self):a
+    def recordSound(self):
         print('Noise sensed, recording is beginning. To stop the recording, stop noise.')
         currentSoundLevel = []
         current = time.time()
@@ -105,9 +131,13 @@ class SoundRecorder:
 
     #function responsible for uploading sound files
     def save(self, recording):
-        n_files = len(os.listdir(directory))
+        global file_name 
+        if file_name == '':
+            file_name = int(time.time())
 
-        filename = os.path.join(directory, '{}.wav'.format(n_files))
+        file_name = file_name + str(int(time.time()))
+
+        filename = os.path.join(directory, '{}.wav'.format(file_name))
 
         wf = wave.open(filename, 'wb')
         wf.setnchannels(CHANNELS)
