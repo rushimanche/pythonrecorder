@@ -14,7 +14,7 @@ parser.add_argument("-p", "--path", help="Enter the desired directory", type=str
 parser.add_argument("-f", "--filename", help="Enter the desired file name", type=str)
 
 args = parser.parse_args()
-directory = args.path if args.path else r'C:\Users\dunka\Documents\GitHub\audioproject\directory'
+directory = args.path if args.path else r'C:\tmp'
 file_name = args.filename if args.filename else ''
 directory.encode('unicode_escape')
 file_name.encode('unicode_escape')
@@ -133,7 +133,7 @@ class SoundRecorder:
     def save(self, recording):
         global file_name 
         if file_name == '':
-            file_name = int(time.time())
+            file_name = str(int(time.time()))
 
         file_name = file_name + str(int(time.time()))
 
