@@ -8,6 +8,10 @@ import time
 import os
 import sys
 import argparse
+import logging
+import boto3
+from botocore.exceptions import ClientError
+
 parser = argparse.ArgumentParser()
 
 parser.add_argument("-p", "--path", help="Enter the desired directory", type=str)
@@ -54,6 +58,8 @@ maxSoundVal = 10
 #Interval AFTER sound finishes that script waits. Don't make this zero.
 pauseInterval = 1
 
+#Amazon S3 Bucket to store recordings
+bucketName = 'python-recording-bucket'
 
 class SoundRecorder:
 
@@ -103,6 +109,28 @@ class SoundRecorder:
                                 output=True,
                                 frames_per_buffer=chunk)
 
+    def upload_file(self, file_name, bucket, object_name=None):
+        """Upload a file to an S3 bucket
+        :param file_name: File to upload
+        :param bucket: Bucket to upload to
+        :param object_name: S3 object name. If not specified then file_name is used
+        :return: True if file was uploaded, else False
+        """
+
+        # If S3 object_name was not specified, use file_name
+        if object_name is None:
+            object_name = file_name
+
+        # Upload the file
+        s3_client = boto3.client('s3')
+        try:
+            response = s3_client.upload_file(file_name, bucket, object_name)
+            print('Success!')
+        except ClientError as e:
+            logging.error(e)
+            return False
+        return True
+
     #function responsible for listening to sound
     def listenForSound(self):
         print('Python listening script initiated!')
@@ -113,10 +141,11 @@ class SoundRecorder:
             input = self.stream.read(chunk)
             current_sound_level = self.calculator(input)
             if current_sound_level > maxSoundVal:
-                self.recordSound()
+                start_time = int(time.time())
+                self.recordSound(start_time)
 
     #function responsible for recording sound
-    def recordSound(self):
+    def recordSound(self, start_time):
         print('Noise sensed, recording is beginning. To stop the recording, stop noise.')
         currentSoundLevel = []
         current = time.time()
@@ -127,23 +156,27 @@ class SoundRecorder:
             if self.calculator(data) >= maxSoundVal: end = time.time() + pauseInterval
             current = time.time()
             currentSoundLevel.append(data)
-        self.save(b''.join(currentSoundLevel))
+        duration = start_time - int(time.time())
+        self.save(b''.join(currentSoundLevel), duration)
 
     #function responsible for uploading sound files
-    def save(self, recording):
+    def save(self, recording, duration):
         global file_name 
-        if file_name == '':
-            file_name = str(int(time.time()))
+        name_of_file = file_name
+        if name_of_file == '':
+            name_of_file = str(int(time.time())) + '' + str(duration)
+        else:
+            name_of_file = name_of_file + '-' + str(int(time.time())) + '-' + str(duration)
 
-        file_name = file_name + str(int(time.time()))
-
-        filename = os.path.join(directory, '{}.wav'.format(file_name))
-
+        filename = os.path.join(directory, '{}.mp3'.format(name_of_file))
         wf = wave.open(filename, 'wb')
         wf.setnchannels(CHANNELS)
         wf.setsampwidth(self.p.get_sample_size(FORMAT))
         wf.setframerate(RATE)
         wf.writeframes(recording)
+        #this will be wher lambda function will go
+        self.upload_file('{}.mp3'.format(name_of_file), bucketName)
+        name_of_file = file_name
         wf.close()
         print('Written to file: {}'.format(filename))
         print('Returning to listening')
