@@ -202,9 +202,10 @@ class SoundRecorder:
         wf.writeframes(recording)
         #this will be wher lambda function will go
         self.upload_file('{}.mp3'.format(name_of_file), bucketName)
-        os.remove(directory, name_of_file)
+        delete_name = name_of_file
         name_of_file = file_name
         wf.close()
+        os.remove(directory + '/' + '{}.mp3'.format(delete_name))
         print('Written to file: {}'.format(filename))
         print('Returning to listening')
 
