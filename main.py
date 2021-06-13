@@ -16,12 +16,19 @@ parser = argparse.ArgumentParser()
 
 parser.add_argument("-p", "--path", help="Enter the desired directory", type=str)
 parser.add_argument("-f", "--filename", help="Enter the desired file name", type=str)
+parser.add_argument("-d", "--device_name", help="Enter the desired device name", type=str)
+parser.add_argument("-s", "--stream_id", help="Enter the desired stream id", type=str)
 
 args = parser.parse_args()
-directory = args.path if args.path else r'C:\tmp'
+directory = args.path if args.path else r'\tmp'
 file_name = args.filename if args.filename else ''
+device_name = args.device_name if args.device_name else ''
+stream_id = args.stream_id if args.stream_id else ''
+
 directory.encode('unicode_escape')
 file_name.encode('unicode_escape')
+device_name.encode('unicode_escape')
+stream_id.encode('unicode_escape')
 
 #this is where your audio files will be stored. Please change this to meet your liking.
 #directory = r'C:\Users\dunka\Documents\GitHub\audioproject\directory'
@@ -35,20 +42,34 @@ CHANNELS = 1
 
 SHORT_NORMALIZE = (1.0/32768.0)
 
-#set environ variables here
-os.environ['chunk'] = '1024'
-os.environ['RATE'] = '16000'
+sts = boto3.client('sts')
+if not sts.get_caller_identity():
+    sys.exit("Improper AWS credentials entered!")
 
-#sets environ variables to our internal variables
-chunk = int(os.getenv('chunk'))
-RATE = int(os.getenv('RATE'))
 
 #logic to check for validity of environ variables. if not met, results in defaults
+
 if(os.getenv('chunk') == None or isinstance(os.getenv('chunk'), int)):
     chunk = 1024
-
+else:
+    chunk = int(os.getenv('chunk'))
 if(os.getenv('RATE') == None or isinstance(os.getenv('RATE'), int)):
     RATE = 16000
+else:
+    RATE = int(os.getenv('RATE'))
+
+if device_name == '':
+    if(os.getenv('device_name') == None or isinstance(os.getenv('device_name'), int)):
+        sys.exit('Device Name Not Found! Please specify device name.')
+    else: 
+        device_name = os.getenv('device_name')
+
+if stream_id == '':
+    if(os.getenv('stream_id') == None or isinstance(os.getenv('stream_id'), int)):
+        sys.exit('Stream ID Not Found! Please specify stream id.')
+    else: 
+        stream_id = os.getenv('stream_id')
+
 
 swidth = 2
 
@@ -84,6 +105,8 @@ class SoundRecorder:
         self.p = pyaudio.PyAudio()
         info = self.p.get_host_api_info_by_index(0)
         numdevices = info.get('deviceCount')
+        global device_name
+        
         device_name = 'Microphone Array (Realtek(R) Au'
         global device_id
         device_id = 0
@@ -124,8 +147,11 @@ class SoundRecorder:
         # Upload the file
         s3_client = boto3.client('s3')
         try:
-            response = s3_client.upload_file(file_name, bucket, object_name)
-            print('Success!')
+            from datetime import date
+            global stream_id
+            file_prefix = stream_id + '/' + date.today().strftime('%m/%d/%Y')
+            response = s3_client.upload_file(file_name, bucket, file_prefix + '/' + object_name)
+            
         except ClientError as e:
             logging.error(e)
             return False
@@ -138,7 +164,7 @@ class SoundRecorder:
             if not(self.p.get_device_info_by_host_api_device_index(0, device_id).get('name')):
                 sys.exit("Audio device disconnected. Please reconnect!")
 
-            input = self.stream.read(chunk)
+            input = self.stream.read(chunk, exception_on_overflow = False)
             current_sound_level = self.calculator(input)
             if current_sound_level > maxSoundVal:
                 start_time = int(time.time())
@@ -176,6 +202,7 @@ class SoundRecorder:
         wf.writeframes(recording)
         #this will be wher lambda function will go
         self.upload_file('{}.mp3'.format(name_of_file), bucketName)
+        os.remove(directory, name_of_file)
         name_of_file = file_name
         wf.close()
         print('Written to file: {}'.format(filename))
