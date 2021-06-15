@@ -178,7 +178,7 @@ class SoundRecorder:
         end = time.time() + pauseInterval
 
         while current <= end:
-            data = self.stream.read(chunk)
+            data = self.stream.read(chunk, exception_on_overflow = False)
             if self.calculator(data) >= maxSoundVal: end = time.time() + pauseInterval
             current = time.time()
             currentSoundLevel.append(data)
