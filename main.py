@@ -193,7 +193,7 @@ class SoundRecorder:
             name_of_file = str(int(time.time())) + '' + str(duration)
         else:
             name_of_file = name_of_file + '-' + str(int(time.time())) + '-' + str(duration)
-
+                
         filename = os.path.join(directory, '{}.mp3'.format(name_of_file))
         wf = wave.open(filename, 'wb')
         wf.setnchannels(CHANNELS)
@@ -201,7 +201,7 @@ class SoundRecorder:
         wf.setframerate(RATE)
         wf.writeframes(recording)
         #this will be wher lambda function will go
-        self.upload_file('{}.mp3'.format(name_of_file), bucketName)
+        self.upload_file(filename, bucketName)
         delete_name = name_of_file
         name_of_file = file_name
         wf.close()
