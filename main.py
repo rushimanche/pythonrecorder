@@ -132,7 +132,7 @@ class SoundRecorder:
                                 output=True,
                                 frames_per_buffer=chunk)
 
-    def upload_file(self, file_name, bucket, object_name=None):
+    def upload_file(self, file_name, bucket, object_name):
         """Upload a file to an S3 bucket
         :param file_name: File to upload
         :param bucket: Bucket to upload to
@@ -150,7 +150,7 @@ class SoundRecorder:
             from datetime import date
             global stream_id
             file_prefix = stream_id + '/' + date.today().strftime('%m/%d/%Y')
-            response = s3_client.upload_file(file_name, bucket, file_prefix + '/' + object_name)
+            response = s3_client.upload_file(file_name, bucket, '{}.mp3'.format(file_prefix + '/' + object_name))
             
         except ClientError as e:
             logging.error(e)
@@ -201,7 +201,7 @@ class SoundRecorder:
         wf.setframerate(RATE)
         wf.writeframes(recording)
         #this will be wher lambda function will go
-        self.upload_file(filename, bucketName)
+        self.upload_file(filename, bucketName, name_of_file)
         delete_name = name_of_file
         name_of_file = file_name
         wf.close()
