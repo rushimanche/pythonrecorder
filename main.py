@@ -106,8 +106,6 @@ class SoundRecorder:
         info = self.p.get_host_api_info_by_index(0)
         numdevices = info.get('deviceCount')
         global device_name
-        
-        device_name = 'Microphone Array (Realtek(R) Au'
         global device_id
         device_id = 0
         
@@ -149,12 +147,11 @@ class SoundRecorder:
         try:
             from datetime import date
             global stream_id
-            file_prefix = stream_id + '/' + date.today().strftime('%m/%d/%Y')
-            response = s3_client.upload_file(file_name, bucket, '{}.mp3'.format(file_prefix + '/' + object_name))
+            file_prefix = stream_id + '/' + date.today().strftime('%Y/%m/%d')
+            response = s3_client.upload_file(file_name, bucket, '{}.mp3'.format(file_prefix + '/' + object_name), ExtraArgs={'ACL':'public-read'})
             
         except ClientError as e:
-            logging.error(e)
-            return False
+            pass
         return True
 
     #function responsible for listening to sound
