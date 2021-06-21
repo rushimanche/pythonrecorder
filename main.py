@@ -184,27 +184,31 @@ class SoundRecorder:
 
     #function responsible for uploading sound files
     def save(self, recording, duration):
-        global file_name 
-        name_of_file = file_name
-        if name_of_file == '':
-            name_of_file = str(int(time.time())) + '' + str(duration)
-        else:
-            name_of_file = name_of_file + '-' + str(int(time.time())) + '-' + str(duration)
-                
-        filename = os.path.join(directory, '{}.mp3'.format(name_of_file))
-        wf = wave.open(filename, 'wb')
-        wf.setnchannels(CHANNELS)
-        wf.setsampwidth(self.p.get_sample_size(FORMAT))
-        wf.setframerate(RATE)
-        wf.writeframes(recording)
-        #this will be wher lambda function will go
-        self.upload_file(filename, bucketName, name_of_file)
-        delete_name = name_of_file
-        name_of_file = file_name
-        wf.close()
-        os.remove(directory + '/' + '{}.mp3'.format(delete_name))
-        print('Written to file: {}'.format(filename))
-        print('Returning to listening')
+        try:
+            global file_name 
+            name_of_file = file_name
+            if name_of_file == '':
+                name_of_file = str(int(time.time())) + '' + str(duration)
+            else:
+                name_of_file = name_of_file + '-' + str(int(time.time())) + '-' + str(duration)
+                    
+            filename = os.path.join(directory, '{}.mp3'.format(name_of_file))
+            wf = wave.open(filename, 'wb')
+            wf.setnchannels(CHANNELS)
+            wf.setsampwidth(self.p.get_sample_size(FORMAT))
+            wf.setframerate(RATE)
+            wf.writeframes(recording)
+            #this will be wher lambda function will go
+            self.upload_file(filename, bucketName, name_of_file)
+            delete_name = name_of_file
+            name_of_file = file_name
+            wf.close()
+            print(filename)
+            os.remove(filename)
+            print('Written to file: {}'.format(filename))
+            print('Returning to listening')
+        except:
+            pass
 
 a = SoundRecorder()
 
