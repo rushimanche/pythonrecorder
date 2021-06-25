@@ -18,17 +18,23 @@ parser.add_argument("-p", "--path", help="Enter the desired directory", type=str
 parser.add_argument("-f", "--filename", help="Enter the desired file name", type=str)
 parser.add_argument("-d", "--device_name", help="Enter the desired device name", type=str)
 parser.add_argument("-s", "--stream_id", help="Enter the desired stream id", type=str)
+parser.add_argument("-a", "--aws_profile", help="Enter the desired aws profile", type=str)
+parser.add_argument("-r", "--rate", help="Enter the desired rate", type=int)
 
 args = parser.parse_args()
 directory = args.path if args.path else r'\tmp'
 file_name = args.filename if args.filename else ''
 device_name = args.device_name if args.device_name else ''
 stream_id = args.stream_id if args.stream_id else ''
+aws_profile = args.aws_profile if args.aws_profile else ''
+input_rate = args.rate if args.rate else ''
 
 directory.encode('unicode_escape')
 file_name.encode('unicode_escape')
 device_name.encode('unicode_escape')
 stream_id.encode('unicode_escape')
+aws_profile.encode('unicode_escape')
+input_rate.encode('unicode_escape')
 
 #this is where your audio files will be stored. Please change this to meet your liking.
 #directory = r'C:\Users\dunka\Documents\GitHub\audioproject\directory'
@@ -54,9 +60,27 @@ if(os.getenv('chunk') == None or isinstance(os.getenv('chunk'), int)):
 else:
     chunk = int(os.getenv('chunk'))
 if(os.getenv('RATE') == None or isinstance(os.getenv('RATE'), int)):
+    if input_rate:
+        RATE = input_rate
     RATE = 16000
 else:
     RATE = int(os.getenv('RATE'))
+
+if(os.getenv('directory') == None or isinstance(os.getenv('directory'), int)):
+    directory = directory
+else:
+    directory = os.getenv('directory')
+
+if(not os.path.isdir(directory)): 
+    sys.exit('Specified directory does not exist!')
+else:
+    if os.access(directory, os.W_OK) is not True:
+        sys.exit('Specified directory is not writable!')
+
+if(os.getenv('stream_id') == None or isinstance(os.getenv('stream_id'), int)):
+    stream_id = stream_id
+else:
+    stream_id = os.getenv('stream_id')
 
 if device_name == '':
     if(os.getenv('device_name') == None or isinstance(os.getenv('device_name'), int)):
@@ -69,6 +93,13 @@ if stream_id == '':
         sys.exit('Stream ID Not Found! Please specify stream id.')
     else: 
         stream_id = os.getenv('stream_id')
+
+if aws_profile == '':
+    try:
+        aws_profile = os.getenv('aws_profile')
+    except:
+        pass
+    
 
 
 swidth = 2
@@ -143,7 +174,19 @@ class SoundRecorder:
             object_name = file_name
 
         # Upload the file
-        s3_client = boto3.client('s3')
+
+        if aws_profile:
+            try:
+                session = boto3.Session(profile_name=aws_profile)
+                s3_client = session.client('s3')
+            except:
+                print("Selected AWS Profile is not valid! Trying default profile.")
+        else:
+            try:
+                s3_client = boto3.client('s3')
+            except:
+                sys.exit("Default profile is not valid!")
+
         try:
             from datetime import date
             global stream_id
@@ -182,6 +225,24 @@ class SoundRecorder:
         duration = start_time - int(time.time())
         self.save(b''.join(currentSoundLevel), duration)
 
+    #function that checks if any files are still remaining in a directory. If it is, send it to s3.
+    def checkForRemaining(self, directory):
+        import pathlib as path
+
+        dirname = path.Path(directory).glob("*.mp3")
+        paths = []
+
+        for file in dirname:
+            paths.append(str(file))
+
+        if paths:
+            for file in paths:
+                try:
+                    self.upload_file(file, bucketName, file.split("\\")[-1].replace('.mp3',''))
+                    os.remove(file)
+                except:
+                    pass
+                
     #function responsible for uploading sound files
     def save(self, recording, duration):
         try:
@@ -198,18 +259,19 @@ class SoundRecorder:
             wf.setsampwidth(self.p.get_sample_size(FORMAT))
             wf.setframerate(RATE)
             wf.writeframes(recording)
-            #this will be wher lambda function will go
+            self.checkForRemaining(directory)
             self.upload_file(filename, bucketName, name_of_file)
             delete_name = name_of_file
             name_of_file = file_name
             wf.close()
-            print(filename)
             os.remove(filename)
             print('Written to file: {}'.format(filename))
             print('Returning to listening')
         except:
             pass
+            
 
 a = SoundRecorder()
 
 a.listenForSound()
+
