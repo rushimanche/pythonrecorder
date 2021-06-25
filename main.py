@@ -11,6 +11,7 @@ import argparse
 import logging
 import boto3
 from botocore.exceptions import ClientError
+import pathlib as path
 
 parser = argparse.ArgumentParser()
 
@@ -227,8 +228,6 @@ class SoundRecorder:
 
     #function that checks if any files are still remaining in a directory. If it is, send it to s3.
     def checkForRemaining(self, directory):
-        import pathlib as path
-
         dirname = path.Path(directory).glob("*.mp3")
         paths = []
 
