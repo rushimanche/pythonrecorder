@@ -237,8 +237,12 @@ class SoundRecorder:
         if paths:
             for file in paths:
                 try:
-                    self.upload_file(file, bucketName, file.split("\\")[-1].replace('.mp3',''))
-                    os.remove(file)
+                    if '\\' in file:         
+                        self.upload_file(file, bucketName, file.split("\\")[-1].replace('.mp3',''))
+                        os.remove(file)
+                    if '/' in file:
+                        self.upload_file(file, bucketName, file.split("/")[-1].replace('.mp3',''))
+                        os.remove(file)
                 except:
                     pass
                 
