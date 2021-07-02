@@ -235,7 +235,8 @@ class SoundRecorder:
             current = time.time()
             currentSoundLevel.append(data)
         duration = start_time - int(time.time())
-        self.save(b''.join(currentSoundLevel), duration)
+        threading.Thread(target=self.save, args=(b''.join(currentSoundLevel), duration,), daemon=True).start()
+        #self.save(b''.join(currentSoundLevel), duration)
 
     #function that checks if any files are still remaining in a directory. If it is, send it to s3.
     def checkForRemaining(self, directory):
@@ -261,7 +262,9 @@ class SoundRecorder:
                 except:
                     pass
 
-        threading.Timer(WAIT_SECONDS, self.checkForRemaining, [directory]).start()
+        x = threading.Timer(WAIT_SECONDS, self.checkForRemaining, [directory])
+        x.daemon = True
+        x.start()
 
                 
     #function responsible for uploading sound files
@@ -285,7 +288,6 @@ class SoundRecorder:
             wf.setsampwidth(self.p.get_sample_size(FORMAT))
             wf.setframerate(RATE)
             wf.writeframes(recording)
-            #self.checkForRemaining(directory)
             if self.connect():
                 self.upload_file(filename, bucketName, name_of_file)
             delete_name = name_of_file
