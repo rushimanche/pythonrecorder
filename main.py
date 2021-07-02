@@ -12,7 +12,8 @@ import logging
 import boto3
 from botocore.exceptions import ClientError
 import pathlib as path
-
+import urllib.request
+import threading
 parser = argparse.ArgumentParser()
 
 parser.add_argument("-p", "--path", help="Enter the desired directory", type=str)
@@ -48,10 +49,6 @@ FORMAT = pyaudio.paInt16
 CHANNELS = 1
 
 SHORT_NORMALIZE = (1.0/32768.0)
-
-sts = boto3.client('sts')
-if not sts.get_caller_identity():
-    sys.exit("Improper AWS credentials entered!")
 
 
 #logic to check for validity of environ variables. if not met, results in defaults
@@ -100,8 +97,6 @@ if aws_profile == '':
         aws_profile = os.getenv('aws_profile')
     except:
         pass
-    
-
 
 swidth = 2
 
@@ -113,6 +108,8 @@ pauseInterval = 1
 
 #Amazon S3 Bucket to store recordings
 bucketName = 'python-recording-bucket'
+
+WAIT_SECONDS = 60
 
 class SoundRecorder:
 
@@ -169,6 +166,9 @@ class SoundRecorder:
         :param object_name: S3 object name. If not specified then file_name is used
         :return: True if file was uploaded, else False
         """
+        sts = boto3.client('sts')
+        if not sts.get_caller_identity():
+            sys.exit("Improper AWS credentials entered!")
 
         # If S3 object_name was not specified, use file_name
         if object_name is None:
@@ -197,10 +197,21 @@ class SoundRecorder:
         except ClientError as e:
             pass
         return True
+    
+    #helper method to check for internet connection
+    def connect(self, host='http://google.com'):
+        try:
+            urllib.request.urlopen(host)
+            return True
+        except:
+            return False
+    
 
     #function responsible for listening to sound
     def listenForSound(self):
         print('Python listening script initiated!')
+        self.checkForRemaining(directory)
+
         while True:
             if not(self.p.get_device_info_by_host_api_device_index(0, device_id).get('name')):
                 sys.exit("Audio device disconnected. Please reconnect!")
@@ -210,7 +221,7 @@ class SoundRecorder:
             if current_sound_level > maxSoundVal:
                 start_time = int(time.time())
                 self.recordSound(start_time)
-
+    
     #function responsible for recording sound
     def recordSound(self, start_time):
         print('Noise sensed, recording is beginning. To stop the recording, stop noise.')
@@ -230,21 +241,28 @@ class SoundRecorder:
     def checkForRemaining(self, directory):
         dirname = path.Path(directory).glob("*.mp3")
         paths = []
-
+        print('Scanning for leftover files!')
         for file in dirname:
             paths.append(str(file))
-
+    
         if paths:
             for file in paths:
                 try:
-                    if '\\' in file:         
-                        self.upload_file(file, bucketName, file.split("\\")[-1].replace('.mp3',''))
-                        os.remove(file)
+                    if '\\' in file:
+                        if 'networkerror' in file.split("\\")[-1].replace('.mp3',''):         
+                            self.upload_file(file, bucketName, file.split("\\")[-1].replace('.mp3','').replace('networkerror',''))
+                            os.remove(file)
+                            print('Leftover submitted!')
                     if '/' in file:
-                        self.upload_file(file, bucketName, file.split("/")[-1].replace('.mp3',''))
-                        os.remove(file)
+                        if 'networkerror' in file.split("/")[-1].replace('.mp3',''):   
+                            self.upload_file(file, bucketName, file.split("/")[-1].replace('.mp3','').replace('networkerror',''))
+                            os.remove(file)
+                            print('Leftover submitted!')
                 except:
                     pass
+
+        threading.Timer(WAIT_SECONDS, self.checkForRemaining, [directory]).start()
+
                 
     #function responsible for uploading sound files
     def save(self, recording, duration):
@@ -252,22 +270,29 @@ class SoundRecorder:
             global file_name 
             name_of_file = file_name
             if name_of_file == '':
-                name_of_file = str(int(time.time())) + '' + str(duration)
+                if self.connect():
+                    name_of_file = str(int(time.time())) + '' + str(duration)
+                else:
+                    name_of_file = 'networkerror' + str(int(time.time())) + '' + str(duration)
             else:
-                name_of_file = name_of_file + '-' + str(int(time.time())) + '-' + str(duration)
-                    
+                if self.connect():
+                    name_of_file = name_of_file + '-' + str(int(time.time())) + '-' + str(duration)
+                else:
+                    name_of_file = 'networkerror' + name_of_file + '-' + str(int(time.time())) + '-' + str(duration)
             filename = os.path.join(directory, '{}.mp3'.format(name_of_file))
             wf = wave.open(filename, 'wb')
             wf.setnchannels(CHANNELS)
             wf.setsampwidth(self.p.get_sample_size(FORMAT))
             wf.setframerate(RATE)
             wf.writeframes(recording)
-            self.checkForRemaining(directory)
-            self.upload_file(filename, bucketName, name_of_file)
+            #self.checkForRemaining(directory)
+            if self.connect():
+                self.upload_file(filename, bucketName, name_of_file)
             delete_name = name_of_file
             name_of_file = file_name
             wf.close()
-            os.remove(filename)
+            if self.connect():
+                os.remove(filename)
             print('Written to file: {}'.format(filename))
             print('Returning to listening')
         except:
