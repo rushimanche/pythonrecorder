@@ -29,7 +29,7 @@
 
   <h3 align="center">PythonRecorder</h3>
 
-
+</div>
 
 ## About the Project
 
