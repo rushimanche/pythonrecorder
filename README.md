@@ -44,17 +44,17 @@ This project is designed to be used in police and fire departments to help them 
 6) The script is now listening. Please play some form of audio to the microphone to test it.
 7) Pro tip: modify the maxSoundVal variable if you want your minimum sound threshold to be higher or lower. The higher it is, the more nuianced the script be in identifying your sound. If your sound is going to be loud, you can increase the variable to the hundreds for your desired value.
 
-Setting Filename Using Command Line:
-
+## Setting Filename Using Command Line:
+```sh
 python main.py -f'your desired filename'
-
-To prevent constant rewriting of the same name, a mechanism was implemented to append UNIX date time to filename. If this feature is not wanted, please remove this line: file_name = file_name + str(int(time.time()))
+```
+To prevent constant rewriting of the same name, a mechanism was implemented to append UNIX date time to filename. If this feature is not wanted, please remove this line: ```shfile_name = file_name + str(int(time.time()))```
 
 If filename is not provided, it will default to UNIX date time.
 
-Setting Path Using Command Line:
-
+## Setting Path Using Command Line:
+```sh
 python main.py -f'your desired path'
-
+```
 If filename is not provided, it will default to /tmp
 
